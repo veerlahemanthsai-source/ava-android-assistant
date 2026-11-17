@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
  */
 class WakeWordDetector(
     private val voiceRecognizer: VoiceRecognizer,
-    private val wakeWords: List<String> = listOf("hey ava", "ava", "ok ava")
+    private val wakeWords: List<String> = listOf("hey jarvis", "jarvis")
 ) {
     private val scope = CoroutineScope(Dispatchers.Default)
     private var detectionJob: Job? = null
