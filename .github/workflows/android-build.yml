@@ -1,5 +1,5 @@
 
-name: Android Build
+name: Build AVA APK
 
 on:
   workflow_dispatch:
@@ -11,39 +11,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
 
-      - name: Find Android SDK manager
+      - name: Locate Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          SDKMANAGER=$(find "$ANDROID_HOME" -name sdkmanager -type f | head -n 1)
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            find "$ANDROID_HOME" -maxdepth 4 -type d
-            exit 1
-          fi
-          echo "SDKMANAGER=$SDKMANAGER"
-          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
-          "$SDKMANAGER" --version
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/build-tools/34.0.0" >> "$GITHUB_PATH"
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
-      - name: Show project structure
+      - name: Build Debug APK
         run: |
-          ls -la
-          ls -la app
-          cat app/build.gradle.kts
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Show Gradle projects
-        run: ./gradlew projects --info
-
-      - name: Show app tasks
-        run: ./gradlew :app:tasks --all --info
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AVA-debug-APK
+          path: app/build/outputs/apk/debug/*.apk
