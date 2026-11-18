@@ -19,11 +19,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.ava.ai.ai.AIManager
+import com.ava.ai.data.datastore.PreferencesManager
 import com.ava.ai.data.models.Message
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen() {
+    val context = LocalContext.current
+    val preferencesManager = remember { PreferencesManager(context) }
+    val aiManager = remember { AIManager(context, preferencesManager) }
+    val scope = rememberCoroutineScope()
+
     var messageText by remember { mutableStateOf("") }
     var messages by remember { mutableStateOf(listOf<Message>()) }
     var isListening by remember { mutableStateOf(false) }
@@ -31,10 +40,59 @@ fun ChatScreen() {
 
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when new message arrives
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    fun sendMessage() {
+        val text = messageText.trim()
+        if (text.isBlank() || isAiThinking) return
+
+        val previousMessages = messages
+        val userMessage = Message(
+            content = text,
+            isFromUser = true
+        )
+
+        messages = messages + userMessage
+        messageText = ""
+        isAiThinking = true
+
+        scope.launch {
+            try {
+                val result = aiManager.sendMessage(
+                    message = text,
+                    conversationHistory = previousMessages
+                )
+
+                result.fold(
+                    onSuccess = { reply ->
+                        messages = messages + Message(
+                            content = reply,
+                            isFromUser = false
+                        )
+                    },
+                    onFailure = { error ->
+                        messages = messages + Message(
+                            content = "JARVIS connection error: ${
+                                error.localizedMessage ?: "Unknown error"
+                            }",
+                            isFromUser = false
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                messages = messages + Message(
+                    content = "Error: ${
+                        e.localizedMessage ?: "Unable to connect"
+                    }",
+                    isFromUser = false
+                )
+            } finally {
+                isAiThinking = false
+            }
         }
     }
 
@@ -50,7 +108,6 @@ fun ChatScreen() {
                 )
             )
     ) {
-        // Messages List
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -62,7 +119,7 @@ fun ChatScreen() {
             items(messages) { message ->
                 MessageBubble(message = message)
             }
-            
+
             if (isAiThinking) {
                 item {
                     ThinkingIndicator()
@@ -70,7 +127,6 @@ fun ChatScreen() {
             }
         }
 
-        // Voice Wave Animation (when listening)
         if (isListening) {
             VoiceWaveAnimation(
                 modifier = Modifier
@@ -79,7 +135,6 @@ fun ChatScreen() {
             )
         }
 
-        // Input Section
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -92,12 +147,13 @@ fun ChatScreen() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Voice Button
                 FloatingActionButton(
-                    onClick = { isListening = !isListening },
-                    containerColor = if (isListening) 
-                        MaterialTheme.colorScheme.error 
-                    else 
+                    onClick = {
+                        isListening = !isListening
+                    },
+                    containerColor = if (isListening)
+                        MaterialTheme.colorScheme.error
+                    else
                         MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(56.dp)
                 ) {
@@ -108,28 +164,24 @@ fun ChatScreen() {
                     )
                 }
 
-                // Text Input
                 OutlinedTextField(
                     value = messageText,
                     onValueChange = { messageText = it },
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Type a message...") },
                     shape = RoundedCornerShape(24.dp),
+                    enabled = !isAiThinking,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        focusedContainerColor =
+                            MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor =
+                            MaterialTheme.colorScheme.surface
                     )
                 )
 
-                // Send Button
                 IconButton(
-                    onClick = {
-                        if (messageText.isNotBlank()) {
-                            // TODO: Send message
-                            messageText = ""
-                        }
-                    },
-                    enabled = messageText.isNotBlank()
+                    onClick = { sendMessage() },
+                    enabled = messageText.isNotBlank() && !isAiThinking
                 ) {
                     Icon(
                         imageVector = Icons.Default.Send,
@@ -137,7 +189,9 @@ fun ChatScreen() {
                         tint = if (messageText.isNotBlank())
                             MaterialTheme.colorScheme.primary
                         else
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            MaterialTheme.colorScheme.onSurface.copy(
+                                alpha = 0.38f
+                            )
                     )
                 }
             }
@@ -149,7 +203,10 @@ fun ChatScreen() {
 fun MessageBubble(message: Message) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.isFromUser) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (message.isFromUser)
+            Arrangement.End
+        else
+            Arrangement.Start
     ) {
         Surface(
             modifier = Modifier.widthIn(max = 280.dp),
@@ -174,16 +231,20 @@ fun MessageBubble(message: Message) {
                     else
                         MaterialTheme.colorScheme.onSecondaryContainer
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Text(
                     text = formatTimestamp(message.timestamp),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (message.isFromUser)
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(
+                            alpha = 0.6f
+                        )
                     else
-                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                        MaterialTheme.colorScheme.onSecondaryContainer.copy(
+                            alpha = 0.6f
+                        )
                 )
             }
         }
@@ -209,23 +270,30 @@ fun ThinkingIndicator() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 repeat(3) { index ->
-                    val infiniteTransition = rememberInfiniteTransition(label = "dot$index")
-                    val alpha by infiniteTransition.animateFloat(
+                    val transition =
+                        rememberInfiniteTransition(label = "dot$index")
+
+                    val alpha by transition.animateFloat(
                         initialValue = 0.3f,
                         targetValue = 1f,
                         animationSpec = infiniteRepeatable(
-                            animation = tween(600, delayMillis = index * 150),
+                            animation = tween(
+                                600,
+                                delayMillis = index * 150
+                            ),
                             repeatMode = RepeatMode.Reverse
                         ),
                         label = "alpha$index"
                     )
-                    
+
                     Box(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
                             .background(
-                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = alpha)
+                                MaterialTheme.colorScheme
+                                    .onSecondaryContainer
+                                    .copy(alpha = alpha)
                             )
                     )
                 }
@@ -242,8 +310,10 @@ fun VoiceWaveAnimation(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         repeat(20) { index ->
-            val infiniteTransition = rememberInfiniteTransition(label = "wave$index")
-            val height by infiniteTransition.animateFloat(
+            val transition =
+                rememberInfiniteTransition(label = "wave$index")
+
+            val height by transition.animateFloat(
                 initialValue = 0.2f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -255,7 +325,7 @@ fun VoiceWaveAnimation(modifier: Modifier = Modifier) {
                 ),
                 label = "height$index"
             )
-            
+
             Box(
                 modifier = Modifier
                     .width(3.dp)
@@ -270,7 +340,7 @@ fun VoiceWaveAnimation(modifier: Modifier = Modifier) {
 private fun formatTimestamp(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
-    
+
     return when {
         diff < 60000 -> "Just now"
         diff < 3600000 -> "${diff / 60000}m ago"
