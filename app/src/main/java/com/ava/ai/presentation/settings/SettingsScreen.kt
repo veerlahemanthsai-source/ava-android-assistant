@@ -1,5 +1,8 @@
 package com.ava.ai.presentation.settings
 
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -9,10 +12,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import com.ava.ai.data.datastore.PreferencesManager
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { PreferencesManager(context) }
+    val scope = rememberCoroutineScope()
+
     var avaActive by remember { mutableStateOf(false) }
     var wakeWordEnabled by remember { mutableStateOf(true) }
     var ttsEnabled by remember { mutableStateOf(true) }
@@ -21,18 +29,40 @@ fun SettingsScreen() {
     var autoStart by remember { mutableStateOf(false) }
     var rootAccessEnabled by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        prefs.avaActive.collect { avaActive = it }
+    }
+
+    LaunchedEffect(Unit) {
+        prefs.wakeWordEnabled.collect { wakeWordEnabled = it }
+    }
+
+    LaunchedEffect(Unit) {
+        prefs.ttsEnabled.collect { ttsEnabled = it }
+    }
+
+    LaunchedEffect(Unit) {
+        prefs.autoReadSms.collect { autoReadSms = it }
+    }
+
+    LaunchedEffect(Unit) {
+        prefs.floatingBubbleEnabled.collect { floatingBubble = it }
+    }
+
+    LaunchedEffect(Unit) {
+        prefs.autoStartOnBoot.collect { autoStart = it }
+    }
+
+    LaunchedEffect(Unit) {
+        prefs.rootAccessEnabled.collect { rootAccessEnabled = it }
+    }
+
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(
-                text = "General Settings",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text("General Settings", style = MaterialTheme.typography.titleLarge)
         }
 
         item {
@@ -42,16 +72,18 @@ fun SettingsScreen() {
                     subtitle = "Enable AVA assistant",
                     icon = Icons.Default.Power,
                     checked = avaActive,
-                    onCheckedChange = { avaActive = it }
+                    onCheckedChange = {
+                        avaActive = it
+                        scope.launch { prefs.setMayaActive(it) }
+                    }
                 )
             }
         }
 
         item {
             Text(
-                text = "Voice Settings",
+                "Voice Settings",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -61,20 +93,26 @@ fun SettingsScreen() {
                 Column {
                     SettingSwitchRow(
                         title = "Wake Word Detection",
-                        subtitle = "Listen for \"Hey Ava\"",
+                        subtitle = "Listen for Hey Ava",
                         icon = Icons.Default.RecordVoiceOver,
                         checked = wakeWordEnabled,
-                        onCheckedChange = { wakeWordEnabled = it }
+                        onCheckedChange = {
+                            wakeWordEnabled = it
+                            scope.launch { prefs.setWakeWordEnabled(it) }
+                        }
                     )
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
+                    HorizontalDivider()
+
                     SettingSwitchRow(
                         title = "Text-to-Speech",
                         subtitle = "Enable voice responses",
                         icon = Icons.Default.VolumeUp,
                         checked = ttsEnabled,
-                        onCheckedChange = { ttsEnabled = it }
+                        onCheckedChange = {
+                            ttsEnabled = it
+                            scope.launch { prefs.setTtsEnabled(it) }
+                        }
                     )
                 }
             }
@@ -82,9 +120,8 @@ fun SettingsScreen() {
 
         item {
             Text(
-                text = "AI Provider",
+                "AI Provider",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -92,19 +129,12 @@ fun SettingsScreen() {
         item {
             SettingCard {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Current Provider",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+                    Text("Current Provider")
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "OpenAI GPT-4",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text("OpenAI GPT-4")
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
-                        onClick = { /* Open provider selection */ },
+                        onClick = {},
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Change Provider")
@@ -115,9 +145,8 @@ fun SettingsScreen() {
 
         item {
             Text(
-                text = "Automation",
+                "Automation",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -130,27 +159,40 @@ fun SettingsScreen() {
                         subtitle = "Read incoming SMS aloud",
                         icon = Icons.Default.Message,
                         checked = autoReadSms,
-                        onCheckedChange = { autoReadSms = it }
+                        onCheckedChange = {
+                            autoReadSms = it
+                            scope.launch { prefs.setAutoReadSms(it) }
+                        }
                     )
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
+                    HorizontalDivider()
+
                     SettingSwitchRow(
                         title = "Floating Bubble",
                         subtitle = "Show floating assistant bubble",
                         icon = Icons.Default.BubbleChart,
                         checked = floatingBubble,
-                        onCheckedChange = { floatingBubble = it }
+                        onCheckedChange = {
+                            floatingBubble = it
+                            scope.launch {
+                                prefs.setFloatingBubbleEnabled(it)
+                            }
+                        }
                     )
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
+                    HorizontalDivider()
+
                     SettingSwitchRow(
                         title = "Auto-start on Boot",
                         subtitle = "Start AVA when device boots",
                         icon = Icons.Default.PowerSettingsNew,
                         checked = autoStart,
-                        onCheckedChange = { autoStart = it }
+                        onCheckedChange = {
+                            autoStart = it
+                            scope.launch {
+                                prefs.setAutoStartOnBoot(it)
+                            }
+                        }
                     )
                 }
             }
@@ -158,9 +200,8 @@ fun SettingsScreen() {
 
         item {
             Text(
-                text = "Advanced",
+                "Advanced",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
@@ -173,33 +214,52 @@ fun SettingsScreen() {
                         subtitle = "Enable root shell access",
                         icon = Icons.Default.Security,
                         checked = rootAccessEnabled,
-                        onCheckedChange = { rootAccessEnabled = it }
+                        onCheckedChange = {
+                            rootAccessEnabled = it
+                            scope.launch {
+                                prefs.setRootAccessEnabled(it)
+                            }
+                        }
                     )
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
+                    HorizontalDivider()
+
                     SettingClickableRow(
                         title = "Accessibility Service",
                         subtitle = "Configure UI automation",
                         icon = Icons.Default.Accessibility,
-                        onClick = { /* Open accessibility settings */ }
+                        onClick = {
+                            openSystemSettings(
+                                context,
+                                Settings.ACTION_ACCESSIBILITY_SETTINGS
+                            )
+                        }
                     )
-                    
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
+                    HorizontalDivider()
+
                     SettingClickableRow(
                         title = "Notification Access",
                         subtitle = "Configure notification listening",
                         icon = Icons.Default.Notifications,
-                        onClick = { /* Open notification settings */ }
+                        onClick = {
+                            openSystemSettings(
+                                context,
+                                "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"
+                            )
+                        }
                     )
                 }
             }
         }
+    }
+}
 
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
-        }
+private fun openSystemSettings(context: Context, action: String) {
+    try {
+        context.startActivity(Intent(action))
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
 
@@ -209,8 +269,7 @@ fun SettingCard(content: @Composable () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        )
     ) {
         content()
     }
@@ -225,32 +284,25 @@ fun SettingSwitchRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
-        
+
         Spacer(modifier = Modifier.width(16.dp))
-        
+
         Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                subtitle,
+                style = MaterialTheme.typography.bodySmall
             )
         }
-        
+
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange
@@ -270,37 +322,19 @@ fun SettingClickableRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-            
+            Icon(imageVector = icon, contentDescription = null)
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall)
             }
-            
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Navigate",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            )
+
+            Icon(Icons.Default.ChevronRight, contentDescription = "Navigate")
         }
     }
 }
